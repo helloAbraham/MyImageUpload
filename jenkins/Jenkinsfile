@@ -1,8 +1,8 @@
 pipeline {
     agent any
-        tools {
-                maven 'maven 3.9.6' 
-              }
+    tools {
+        maven 'maven 3.9.6' 
+    }
     stages {
         stage('Build') {
             steps {
@@ -21,10 +21,24 @@ pipeline {
         }
         stage('Deliver') {
             steps {
+                // Optional: run your delivery script if needed
                 sh 'bash ./jenkins/scripts/deliver.sh'
          
-                echo "The following command runs your application..."
-
+                echo "Deploying and running the application..."
+                
+                // Run the jar in the background safely without letting Jenkins hang
+                sh '''
+                    # Stop any old instances running on port 8082 if necessary
+                    kill $(lsof -t -i:8082) || true
+                    
+                    # Prevent Jenkins from killing the background process when the stage ends
+                    export JENKINS_NODE_COOKIE=dontKillMe
+                    
+                    # Execute your jar in the background using nohup
+                    nohup java -jar target/MyImageUpload3Domains.jar --server.port=8082 --spring.profiles.active=prod > app.log 2>&1 &
+                '''
+                
+                echo "Application is booting up on port 8082..."
             }
         }
     }
