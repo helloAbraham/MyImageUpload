@@ -1,8 +1,8 @@
 pipeline {
     agent any
-        tools {
-                maven 'maven 3.9.6' 
-              }
+    tools {
+        maven 'maven 3.9.6' 
+    }
     stages {
         stage('Build') {
             steps {
@@ -19,13 +19,35 @@ pipeline {
                 }
             }
         }
-        stage('Deliver') {
+                        stage('Deliver') {
             steps {
                 sh 'bash ./jenkins/scripts/deliver.sh'
          
-                echo "The following command runs your application..."
-
+                echo "Deploying and running the application..."
+                
+                sh '''
+                    # 1. Kill anything running on port 8082 first
+                    PID=$(lsof -t -i:8082) || true
+                    if [ ! -z "$PID" ]; then
+                        kill -9 $PID || true
+                    fi
+                    
+                    # 2. Tell Jenkins not to kill our background process
+                    export JENKINS_NODE_COOKIE=dontKillMe
+                    
+                    # 3. Use target/*.jar to automatically pick up the correct filename
+                    nohup java -jar target/*.jar --server.port=8082 --spring.profiles.active=prod > backend_app.log 2>&1 &
+                '''
+                
+                // Allow a few seconds for Spring Boot to start writing to the log file
+                sleep 5
+                
+                // Print out the application logs inside the Jenkins console
+                sh 'cat backend_app.log || true'
+                
+                echo "Application is booting up on port 8082..."
             }
         }
+
     }
 }
